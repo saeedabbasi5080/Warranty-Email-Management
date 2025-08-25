@@ -7,6 +7,7 @@ codeunit 50620 "Warranty Notification Mgt."
 
     procedure RunWarrantyNotificationProcess()
     var
+        NotificationSetup: Record "Notification Setup";
         WarrantyNotificationSetup: Record "Warranty Notification Setup";
         ServiceItem: Record "Service Item";
         ServiceItemGroup: Record "Service Item Group";
@@ -18,19 +19,23 @@ codeunit 50620 "Warranty Notification Mgt."
         CustomerEmail: Text[80];
         SalespersonEmail: Text[80];
     begin
-        if not WarrantyNotificationSetup.Get('DEFAULT') then
-            Error('Warranty notification settings not found. Please open the settings page first.');
+        // NotificationSetup.Get();
 
-        if not WarrantyNotificationSetup."Notification Enabled" then
-            Error('Warranty notification system is disabled');
+        // if NotificationSetup."Notification Type" <> NotificationSetup."Notification Type"::"Warranty 90 Days" then
+        //     exit;
+        // if not WarrantyNotificationSetup.Get('DEFAULT') then
+        //     Error('Warranty notification settings not found. Please open the settings page first.');
+
+        // if not WarrantyNotificationSetup."Notification Enabled" then
+        //     Error('Warranty notification system is disabled');
 
         // Only service items that are license and support (filtered by service item group)
         ServiceItem.Reset();
-        ServiceItem.SetFilter("Warranty Ending Date (Labor)", '<>%1', 0D);
+        ServiceItem.SetFilter("Warranty Ending Date (Parts)", '<>%1', 0D);
 
         NotificationDate := CalcDate(Format(WarrantyNotificationSetup."Days Before Expiry") + 'D', WorkDate());
 
-        ServiceItem.SetFilter("Warranty Ending Date (Labor)", '=%1', CalcDate(Format(WarrantyNotificationSetup."Days Before Expiry") + 'D', WorkDate()));
+        ServiceItem.SetFilter("Warranty Ending Date (Parts)", '=%1', CalcDate(Format(WarrantyNotificationSetup."Days Before Expiry") + 'D', WorkDate()));
 
         if ServiceItem.FindSet() then
             repeat
@@ -61,7 +66,7 @@ codeunit 50620 "Warranty Notification Mgt."
                             WarrantyNotificationLog."Customer Email" := CustomerEmail;
                             WarrantyNotificationLog."Salesperson Code" := Customer."Salesperson Code";
                             WarrantyNotificationLog."Salesperson Email" := SalespersonEmail;
-                            WarrantyNotificationLog."Warranty End Date" := ServiceItem."Warranty Ending Date (Labor)";
+                            WarrantyNotificationLog."Warranty End Date" := ServiceItem."Warranty Ending Date (Parts)";
                             WarrantyNotificationLog."Notification Date" := WorkDate();
                             WarrantyNotificationLog.Insert();
 

@@ -22,7 +22,7 @@ codeunit 50621 "Warranty Email Management"
                 WarrantyNotificationSetup.Modify();
             end;
 
-        // بررسی تنظیمات SMTP
+        // Check SMTP settings
         if not SMTPMailSetup.Get() then
             Error('SMTP settings not found. Please configure email settings.');
 
@@ -76,10 +76,9 @@ codeunit 50621 "Warranty Email Management"
             SMTPMailSetup."SMTP Server", SMTPMailSetup."SMTP Server Port",
             SMTPMailSetup."User ID", Format(SMTPMailSetup."Secure Connection"));
 
-        // Create message - pay attention to correct settings
+        // Create message
         Clear(SMTPMail);
 
-        // تنظیم SMTP Mail مشابه آنچه در تست‌های موفق استفاده می‌شود
         SMTPMail.CreateMessage(
             WarrantyNotificationSetup."Company Name",
             SMTPMailSetup."User ID",
@@ -88,21 +87,21 @@ codeunit 50621 "Warranty Email Management"
             EmailBody,
             true); // HTML = true
 
-        // ارسال ایمیل
+        // Send email
         ClearLastError();
         if SMTPMail.Send() then begin
-            // بروزرسانی لاگ
+            // Update log
             WarrantyNotificationLog."Email Sent" := true;
             WarrantyNotificationLog."Email Sent DateTime" := CurrentDateTime;
             WarrantyNotificationLog."Failed" := false;
             WarrantyNotificationLog."Error Message" := '';
-            Message('ایمیل با موفقیت ارسال شد');
+            Message('Email sent successfully');
         end else begin
-            // ثبت خطا
+            // Log error
             WarrantyNotificationLog."Email Sent" := false;
             WarrantyNotificationLog."Failed" := true;
             WarrantyNotificationLog."Error Message" := CopyStr(GetLastErrorText(), 1, 250);
-            Error('خطا در ارسال ایمیل: %1', GetLastErrorText());
+            Error('Error sending email: %1', GetLastErrorText());
         end;
 
         WarrantyNotificationLog.Modify();
@@ -114,7 +113,7 @@ codeunit 50621 "Warranty Email Management"
     begin
         Result := Template;
 
-        // انتخاب نام مخاطب - مشتری یا فروشنده
+        // Select contact name - customer or salesperson
         ContactName := Customer.Name;
         if Customer.Contact <> '' then
             ContactName := Customer.Contact;
@@ -123,7 +122,7 @@ codeunit 50621 "Warranty Email Management"
             if SalespersonPurchaser.Name <> '' then
                 ContactName := SalespersonPurchaser.Name;
 
-        // جایگزینی فیلدها در قالب
+        // Replace fields in template
         Result := Result.Replace('[نام مشتری/کارشناس فروش]', ContactName);
         Result := Result.Replace('[item no]', ServiceItem."No.");
         Result := Result.Replace('[item serial no]', ServiceItem."Serial No.");
@@ -149,21 +148,21 @@ codeunit 50621 "Warranty Email Management"
     begin
         if not WarrantyNotificationSetup.Get() then
             if not WarrantyNotificationSetup.FindFirst() then
-                Error('تنظیمات اعلان گارانتی پیدا نشد');
+                Error('Warranty notification setup not found');
 
-        // بررسی تنظیمات SMTP
+        // Check SMTP settings
         if not SMTPMailSetup.Get() then
-            Error('تنظیمات SMTP یافت نشد. لطفا تنظیمات ایمیل را پیکربندی کنید.');
+            Error('SMTP settings not found. Please configure email settings.');
 
-        // نمایش اطلاعات حساب SMTP برای عیب‌یابی
-        Message('اطلاعات SMTP:\nسرور: %1\nپورت: %2\nکاربر: %3\nSSL/TLS: %4',
+        // Show SMTP info for debugging
+        Message('SMTP info:\nServer: %1\nPort: %2\nUser: %3\nSSL/TLS: %4',
             SMTPMailSetup."SMTP Server", SMTPMailSetup."SMTP Server Port",
             SMTPMailSetup."User ID", Format(SMTPMailSetup."Secure Connection"));
 
-        // آماده‌سازی قالب ایمیل با مقادیر نمونه
-        EmailSubject := StrSubstNo('%1 (آزمایشی)', WarrantyNotificationSetup."Email Subject");
+        // Prepare email template with sample values
+        EmailSubject := StrSubstNo('%1 (Test)', WarrantyNotificationSetup."Email Subject");
 
-        // استفاده از مقادیر نمونه
+        // Use sample values
         EmailBody := PrepareEmailBody(
             WarrantyNotificationSetup.GetEmailTemplate(),
             ServiceItem,
@@ -171,19 +170,19 @@ codeunit 50621 "Warranty Email Management"
             SalespersonPurchaser,
             WarrantyNotificationSetup);
 
-        // جایگزینی اطلاعات نمونه
-        EmailBody := EmailBody.Replace('[نام مشتری/کارشناس فروش]', 'کاربر آزمایشی');
+        // Replace sample info
+        EmailBody := EmailBody.Replace('[نام مشتری/کارشناس فروش]', 'Test User');
         EmailBody := EmailBody.Replace('[item no]', 'ITEM-TEST');
         EmailBody := EmailBody.Replace('[warranty ending date]', Format(CalcDate('<+3M>', WorkDate())));
 
         Clear(SMTPMail);
 
-        // تنظیم لیست گیرندگان
+        // Set recipients list
         Clear(Recipients);
         Recipients.Add(EmailAddress);
-        Message('ارسال ایمیل آزمایشی به: %1', EmailAddress);
+        Message('Sending test email to: %1', EmailAddress);
 
-        // ایجاد پیام
+        // Create message
         SMTPMail.CreateMessage(
             WarrantyNotificationSetup."Company Name",
             SMTPMailSetup."User ID",
@@ -192,13 +191,13 @@ codeunit 50621 "Warranty Email Management"
             EmailBody,
             true);
 
-        // ارسال ایمیل
+        // Send email
         ClearLastError();
         if not SMTPMail.Send() then begin
             ErrorText := GetLastErrorText();
-            Message('خطا در ارسال ایمیل آزمایشی: %1', ErrorText);
+            Message('Error sending test email: %1', ErrorText);
             Error(ErrorText);
         end else
-            Message('ایمیل آزمایشی با موفقیت به %1 ارسال شد', EmailAddress);
+            Message('Test email sent successfully to %1', EmailAddress);
     end;
 }

@@ -22,7 +22,7 @@ table 50620 "Warranty Notification Setup"
         {
             Caption = 'Days before expiry';
             DataClassification = CustomerContent;
-            InitValue = 90; // 3 months
+            InitValue = 90;
             MinValue = 1;
         }
         field(4; "Email Subject"; Text[100])

@@ -87,17 +87,17 @@ page 50621 "Warranty Notification Log"
             action(ResendEmail)
             {
                 ApplicationArea = All;
-                Caption = 'ارسال مجدد ایمیل';
+                Caption = 'Resend Email';
                 Image = Email;
                 Promoted = true;
                 PromotedCategory = Process;
-                ToolTip = 'ارسال مجدد ایمیل اعلان';
+                ToolTip = 'Resend notification email';
 
                 trigger OnAction()
                 var
                     WarrantyEmailMgt: Codeunit "Warranty Email Management";
                 begin
-                    if not Confirm('آیا می‌خواهید ایمیل را مجدداً ارسال کنید؟') then
+                    if not Confirm('Do you want to resend the email?') then
                         exit;
 
                     WarrantyEmailMgt.SendWarrantyNotification(Rec);

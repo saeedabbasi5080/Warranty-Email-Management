@@ -144,18 +144,18 @@ page 50620 "Warranty Notification Setup"
         }
     }
 
-    trigger OnOpenPage()
-    begin
-        if not Rec.Get() then begin
-            Rec.Init();
-            Rec."Primary Key" := 'DEFAULT';
-            Rec.Insert();
-            Rec.SetDefaultTemplate();
-            Commit();
-        end;
+    // trigger OnOpenPage()
+    // begin
+    //     if not Rec.Get() then begin
+    //         Rec.Init();
+    //         Rec."Primary Key" := 'DEFAULT';
+    //         Rec.Insert();
+    //         Rec.SetDefaultTemplate();
+    //         Commit();
+    //     end;
 
-        EmailTemplateText := Rec.GetEmailTemplate();
-    end;
+    //     EmailTemplateText := Rec.GetEmailTemplate();
+    // end;
 
     var
         EmailTemplateText: Text;
