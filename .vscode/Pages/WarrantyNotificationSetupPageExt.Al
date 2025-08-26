@@ -1,4 +1,3 @@
-
 //*******
 page 50620 "Warranty Notification Setup"
 {
@@ -41,7 +40,7 @@ page 50620 "Warranty Notification Setup"
                     ApplicationArea = All;
                     ToolTip = 'Email subject sent for warranty expiration notification';
                 }
-                field(EmailTemplateText; EmailTemplateText)
+                field("Email Template Text"; Rec."Email Template")
                 {
                     ApplicationArea = All;
                     Caption = 'Email Template Text';
@@ -50,7 +49,7 @@ page 50620 "Warranty Notification Setup"
 
                     trigger OnValidate()
                     begin
-                        Rec.SetEmailTemplate(EmailTemplateText);
+                        Rec.Validate("Email Template");
                     end;
                 }
                 field("Support Email"; Rec."Support Email")
@@ -103,7 +102,7 @@ page 50620 "Warranty Notification Setup"
                     if Rec."Send Test Email To" = '' then
                         Error('Please enter the test email address');
 
-                    WarrantyEmailMgt.SendTestEmail(Rec."Send Test Email To");
+                    WarrantyEmailMgt.SendTestEmail(Rec."Send Test Email To", Rec."Primary Key");
                 end;
             }
 
@@ -125,38 +124,35 @@ page 50620 "Warranty Notification Setup"
                 end;
             }
 
-            action(RestoreDefaultTemplate)
+            action(SetupList)
             {
                 ApplicationArea = All;
-                Caption = 'Restore Default Template';
-                Image = Restore;
-                ToolTip = 'Restore the email template text to default';
-
-                trigger OnAction()
-                begin
-                    if Confirm('Are you sure you want to restore the email template text to default?') then begin
-                        Rec.SetDefaultTemplate();
-                        EmailTemplateText := Rec.GetEmailTemplate();
-                        Message('Email template text has been restored to default');
-                    end;
-                end;
+                Caption = 'Setup List';
+                Image = List;
+                RunObject = page "Warranty Notification List";
+                Promoted = true;
+                PromotedCategory = Process;
+                ToolTip = 'View all notification setup configurations';
             }
         }
     }
 
-    // trigger OnOpenPage()
-    // begin
-    //     if not Rec.Get() then begin
-    //         Rec.Init();
-    //         Rec."Primary Key" := 'DEFAULT';
-    //         Rec.Insert();
-    //         Rec.SetDefaultTemplate();
-    //         Commit();
-    //     end;
-
-    //     EmailTemplateText := Rec.GetEmailTemplate();
-    // end;
-
+    trigger OnNewRecord(BelowxRec: Boolean)
     var
-        EmailTemplateText: Text;
+        WarrantyNotificationSetup: Record "Warranty Notification Setup";
+        NewCode: Integer;
+    begin
+        // Generate unique Primary Key for new records
+        if WarrantyNotificationSetup.FindLast() then begin
+            if Evaluate(NewCode, WarrantyNotificationSetup."Primary Key") then
+                NewCode += 1
+            else
+                NewCode := 1;
+        end else
+            NewCode := 1;
+
+        Rec."Primary Key" := Format(NewCode, 0, '<Integer,4><Filler,0>');
+        Rec."Notification Enabled" := true;
+        Rec."Days Before Expiry" := 90;
+    end;
 }

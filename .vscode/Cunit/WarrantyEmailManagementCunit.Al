@@ -13,14 +13,8 @@ codeunit 50621 "Warranty Email Management"
         Recipients: List of [Text];
     begin
         // Check warranty notification settings
-        if not WarrantyNotificationSetup.Get() then
-            if not WarrantyNotificationSetup.FindFirst() then begin
-                WarrantyNotificationSetup.Init();
-                WarrantyNotificationSetup."Primary Key" := 'DEFAULT';
-                WarrantyNotificationSetup.Insert();
-                WarrantyNotificationSetup.SetDefaultTemplate();
-                WarrantyNotificationSetup.Modify();
-            end;
+        if not WarrantyNotificationSetup.FindFirst() then
+            Error('Warranty notification settings not found. Please configure settings first.');
 
         // Check SMTP settings
         if not SMTPMailSetup.Get() then
@@ -43,11 +37,11 @@ codeunit 50621 "Warranty Email Management"
         // Prepare email subject
         EmailSubject := WarrantyNotificationSetup."Email Subject";
         if EmailSubject = '' then
-            EmailSubject := 'Your warranty will expire soon';
+            Error('Email subject not defined in settings');
 
         // Prepare email body
         EmailBody := PrepareEmailBody(
-            WarrantyNotificationSetup.GetEmailTemplate(),
+            WarrantyNotificationSetup."Email Template",
             ServiceItem,
             Customer,
             SalespersonPurchaser,
@@ -66,15 +60,6 @@ codeunit 50621 "Warranty Email Management"
 
         if Recipients.Count = 0 then
             Error('No recipient is set for sending email');
-
-        // Notification for debugging
-        Message('Sending email from %1 to %2 recipient(s)',
-            SMTPMailSetup."User ID", Format(Recipients.Count));
-
-        // Show SMTP info for debugging
-        Message('SMTP settings:\nServer: %1\nPort: %2\nUser: %3\nSSL/TLS: %4',
-            SMTPMailSetup."SMTP Server", SMTPMailSetup."SMTP Server Port",
-            SMTPMailSetup."User ID", Format(SMTPMailSetup."Secure Connection"));
 
         // Create message
         Clear(SMTPMail);
@@ -95,7 +80,6 @@ codeunit 50621 "Warranty Email Management"
             WarrantyNotificationLog."Email Sent DateTime" := CurrentDateTime;
             WarrantyNotificationLog."Failed" := false;
             WarrantyNotificationLog."Error Message" := '';
-            Message('Email sent successfully');
         end else begin
             // Log error
             WarrantyNotificationLog."Email Sent" := false;
@@ -133,71 +117,62 @@ codeunit 50621 "Warranty Email Management"
         Result := Result.Replace('[company name]', WarrantyNotificationSetup."Company Name");
     end;
 
-    procedure SendTestEmail(EmailAddress: Text[80])
+    procedure SendTestEmail(EmailAddress: Text[80]; SetupKey: Code[10])
     var
-        WarrantyNotificationSetup: Record "Warranty Notification Setup";
-        ServiceItem: Record "Service Item";
-        Customer: Record Customer;
-        SalespersonPurchaser: Record "Salesperson/Purchaser";
         SMTPMailSetup: Record "SMTP Mail Setup";
         SMTPMail: Codeunit "SMTP Mail";
         EmailBody: Text;
         EmailSubject: Text;
         Recipients: List of [Text];
-        ErrorText: Text;
+        WarrantyNotificationSetup: Record "Warranty Notification Setup";
     begin
-        if not WarrantyNotificationSetup.Get() then
-            if not WarrantyNotificationSetup.FindFirst() then
-                Error('Warranty notification setup not found');
+        // استفاده دقیق از SetupKey برای بازیابی رکورد مورد نظر
+        if not WarrantyNotificationSetup.Get(SetupKey) then
+            Error('Setup record with key %1 not found', SetupKey);
 
-        // Check SMTP settings
+        // بررسی تنظیمات SMTP
         if not SMTPMailSetup.Get() then
             Error('SMTP settings not found. Please configure email settings.');
 
-        // Show SMTP info for debugging
-        Message('SMTP info:\nServer: %1\nPort: %2\nUser: %3\nSSL/TLS: %4',
-            SMTPMailSetup."SMTP Server", SMTPMailSetup."SMTP Server Port",
-            SMTPMailSetup."User ID", Format(SMTPMailSetup."Secure Connection"));
-
-        // Prepare email template with sample values
+        // آماده‌سازی موضوع ایمیل از رکورد انتخاب شده
         EmailSubject := StrSubstNo('%1 (Test)', WarrantyNotificationSetup."Email Subject");
+        if EmailSubject = ' (Test)' then
+            EmailSubject := 'Warranty Notification (Test)';
 
-        // Use sample values
-        EmailBody := PrepareEmailBody(
-            WarrantyNotificationSetup.GetEmailTemplate(),
-            ServiceItem,
-            Customer,
-            SalespersonPurchaser,
-            WarrantyNotificationSetup);
+        // آماده‌سازی متن ایمیل از رکورد انتخاب شده
+        EmailBody := WarrantyNotificationSetup."Email Template";
 
-        // Replace sample info
+        // جایگزینی متغیرها با مقادیر تست
         EmailBody := EmailBody.Replace('[نام مشتری/کارشناس فروش]', 'Test User');
         EmailBody := EmailBody.Replace('[item no]', 'ITEM-TEST');
-        EmailBody := EmailBody.Replace('[warranty ending date]', Format(CalcDate('<+3M>', WorkDate())));
+        EmailBody := EmailBody.Replace('[item serial no]', 'SN-TEST-123');
+        EmailBody := EmailBody.Replace('[item description]', 'Test Product');
+        EmailBody := EmailBody.Replace('[warranty ending date]', Format(CalcDate('<+30D>', WorkDate())));
+        EmailBody := EmailBody.Replace('[support email]', WarrantyNotificationSetup."Support Email");
+        EmailBody := EmailBody.Replace('[support phone]', WarrantyNotificationSetup."Support Phone");
+        EmailBody := EmailBody.Replace('[company name]', WarrantyNotificationSetup."Company Name");
 
-        Clear(SMTPMail);
-
-        // Set recipients list
+        // پاک کردن لیست گیرندگان قبلی
         Clear(Recipients);
-        Recipients.Add(EmailAddress);
-        Message('Sending test email to: %1', EmailAddress);
 
-        // Create message
+        // اضافه کردن فقط یک گیرنده - آدرس ایمیل مشخص شده
+        Recipients.Add(EmailAddress);
+
+        // ساخت پیام ایمیل
+        Clear(SMTPMail);
         SMTPMail.CreateMessage(
             WarrantyNotificationSetup."Company Name",
             SMTPMailSetup."User ID",
             Recipients,
             EmailSubject,
             EmailBody,
-            true);
+            true); // HTML = true
 
-        // Send email
+        // ارسال ایمیل - فقط یک بار
         ClearLastError();
-        if not SMTPMail.Send() then begin
-            ErrorText := GetLastErrorText();
-            Message('Error sending test email: %1', ErrorText);
-            Error(ErrorText);
-        end else
-            Message('Test email sent successfully to %1', EmailAddress);
+        if SMTPMail.Send() then
+            Message('Test email sent successfully to %1', EmailAddress)
+        else
+            Error('Error sending test email: %1', GetLastErrorText());
     end;
 }
