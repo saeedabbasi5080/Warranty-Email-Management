@@ -11,7 +11,6 @@ codeunit 50620 "Warranty Notification Mgt."
         ServiceItem: Record "Service Item";
         TempServiceItemBuffer: Record "Service Item" temporary;
         Customer: Record Customer;
-        ServiceItemGroup: Record "Service Item Group"; // اضافه شد
         NotificationDate: Date;
         CurrentCustomerNo: Code[20];
         TotalEmails: Integer;
@@ -31,15 +30,12 @@ codeunit 50620 "Warranty Notification Mgt."
 
         repeat
             // Calculate target expiry date based on Days Before Expiry
-            NotificationDate := CalcDate('<+' + Format(WarrantyNotificationSetup."Days Before Expiry") + 'D>', TODAY);
+            NotificationDate := CalcDate('<+' + Format(WarrantyNotificationSetup."Days Before Expiry") + 'D>', WorkDate());
 
             // Find all service items expiring on target date - directly without customer loop
             ServiceItem.Reset();
             ServiceItem.SetFilter("Warranty Ending Date (Parts)", '<>%1', 0D);
             ServiceItem.SetRange("Warranty Ending Date (Parts)", NotificationDate);
-
-            // فقط آیتم‌هایی که گروه‌شان License یا Support است
-            ServiceItem.SetFilter("Service Item Group Code", '%1|%2', 'License', 'Support');
 
             // Group by customer
             if ServiceItem.FindSet() then begin
@@ -84,7 +80,7 @@ codeunit 50620 "Warranty Notification Mgt."
             end;
 
             // Update last run date
-            WarrantyNotificationSetup."Last Run Date" := TODAY;
+            WarrantyNotificationSetup."Last Run Date" := WorkDate();
             WarrantyNotificationSetup.Modify();
         until WarrantyNotificationSetup.Next() = 0;
 
@@ -101,7 +97,6 @@ codeunit 50620 "Warranty Notification Mgt."
         var TotalEmails: Integer;
         var TotalItems: Integer)
     var
-        ServiceItemGroup: Record "Service Item Group";
         SalespersonPurchaser: Record "Salesperson/Purchaser";
         WarrantyNotificationLog: Record "Warranty Notification Log";
         WarrantyEmailMgt: Codeunit "Warranty Email Management";
@@ -124,65 +119,46 @@ codeunit 50620 "Warranty Notification Mgt."
         if (CustomerEmail = '') and (SalespersonEmail = '') then
             exit;
 
-        // Build list of expiring items for this customer from buffer
-        ItemsList := BuildItemsListFromBuffer(TempServiceItemBuffer);
-        if ItemsList = '' then
-            exit;  // No eligible items
-
-        // Find latest entry number
-        WarrantyNotificationLog.Reset();
-        if WarrantyNotificationLog.FindLast() then
-            LatestEntryNo := WarrantyNotificationLog."Entry No."
-        else
-            LatestEntryNo := 0;
-
-        // Create consolidated log entry
-        WarrantyNotificationLog.Init();
-        WarrantyNotificationLog."Entry No." := LatestEntryNo + 1;
-        WarrantyNotificationLog."Service Item No." := 'MULTI'; // Multiple items
-        WarrantyNotificationLog."Customer No." := Customer."No.";
-        WarrantyNotificationLog."Customer Email" := CustomerEmail;
-        WarrantyNotificationLog."Salesperson Code" := Customer."Salesperson Code";
-        WarrantyNotificationLog."Salesperson Email" := SalespersonEmail;
-        WarrantyNotificationLog."Warranty End Date" := TODAY + WarrantyNotificationSetup."Days Before Expiry";
-        WarrantyNotificationLog."Notification Date" := TODAY;
-        WarrantyNotificationLog."Setup ID" := WarrantyNotificationSetup."Primary Key";
-        WarrantyNotificationLog."Item List" := CopyStr(ItemsList, 1, 250); // Store first part of items list
-
+        // حلقه روی هر آیتم و ارسال ایمیل جداگانه
         TempServiceItemBuffer.Reset();
-        WarrantyNotificationLog."Items Count" := TempServiceItemBuffer.Count;
-        WarrantyNotificationLog.Insert();
+        if TempServiceItemBuffer.FindSet() then
+            repeat
+                ItemsList := BuildItemsListFromBuffer(TempServiceItemBuffer); // یا فقط اطلاعات همان آیتم را بساز
 
-        // Complete transaction before sending email
-        Commit();
+                // ساخت لاگ برای هر آیتم
+                WarrantyNotificationLog.Init();
+                WarrantyNotificationLog."Entry No." := WarrantyNotificationLog.Count + 1;
+                WarrantyNotificationLog."Service Item No." := TempServiceItemBuffer."No.";
+                WarrantyNotificationLog."Customer No." := Customer."No.";
+                WarrantyNotificationLog."Customer Email" := CustomerEmail;
+                WarrantyNotificationLog."Salesperson Code" := Customer."Salesperson Code";
+                WarrantyNotificationLog."Salesperson Email" := SalespersonEmail;
+                WarrantyNotificationLog."Warranty End Date" := TempServiceItemBuffer."Warranty Ending Date (Parts)";
+                WarrantyNotificationLog."Notification Date" := WorkDate();
+                WarrantyNotificationLog."Setup ID" := WarrantyNotificationSetup."Primary Key";
+                WarrantyNotificationLog."Item List" := TempServiceItemBuffer."No."; // یا اطلاعات کامل همان آیتم
+                WarrantyNotificationLog."Items Count" := 1;
+                WarrantyNotificationLog.Insert();
 
-        // Send email with item list
-        Clear(EmailSent);
-        EmailSent := WarrantyEmailMgt.SendGroupWarrantyNotification(
-            WarrantyNotificationLog,
-            WarrantyNotificationSetup,
-            ItemsList);
+                Commit();
 
-        // Update log with results
-        WarrantyNotificationLog."Email Sent" := EmailSent;
-        if not EmailSent then begin
-            WarrantyNotificationLog."Failed" := true;
-            WarrantyNotificationLog."Error Message" := CopyStr(GetLastErrorText(), 1, 250);
-        end else begin
-            // Count successful emails
-            TotalEmails += 1;
-            TempServiceItemBuffer.Reset();
-            TotalItems += TempServiceItemBuffer.Count;
-        end;
-        WarrantyNotificationLog.Modify();
+                // ارسال ایمیل برای هر آیتم
+                Clear(EmailSent);
+                EmailSent := WarrantyEmailMgt.SendGroupWarrantyNotification(
+                    WarrantyNotificationLog,
+                    WarrantyNotificationSetup,
+                    ItemsList);
 
-        // Log each individual service item
-        LogIndividualItemsFromBuffer(
-            TempServiceItemBuffer,
-            WarrantyNotificationLog."Entry No.",
-            Customer,
-            WarrantyNotificationSetup,
-            EmailSent);
+                WarrantyNotificationLog."Email Sent" := EmailSent;
+                if not EmailSent then begin
+                    WarrantyNotificationLog."Failed" := true;
+                    WarrantyNotificationLog."Error Message" := CopyStr(GetLastErrorText(), 1, 250);
+                end else begin
+                    TotalEmails += 1;
+                    TotalItems += 1;
+                end;
+                WarrantyNotificationLog.Modify();
+            until TempServiceItemBuffer.Next() = 0;
     end;
 
     local procedure BuildItemsListFromBuffer(var TempServiceItemBuffer: Record "Service Item" temporary) ItemsList: Text
@@ -221,7 +197,7 @@ codeunit 50620 "Warranty Notification Mgt."
         EmailSent: Boolean)
     var
         WarrantyNotificationLog: Record "Warranty Notification Log";
-        SalespersonPurchaser: Record "Salesperson/Purchaser";
+        SalespersonPurchaser: Record "Salesperson/Purchaser"; // اضافه کردن متغیر ناقص
         NextEntryNo: Integer;
     begin
         // Find next entry number
@@ -248,7 +224,7 @@ codeunit 50620 "Warranty Notification Mgt."
                         WarrantyNotificationLog."Salesperson Email" := SalespersonPurchaser."E-Mail";
                 end;
                 WarrantyNotificationLog."Warranty End Date" := TempServiceItemBuffer."Warranty Ending Date (Parts)";
-                WarrantyNotificationLog."Notification Date" := TODAY;
+                WarrantyNotificationLog."Notification Date" := WorkDate();
                 WarrantyNotificationLog."Setup ID" := WarrantyNotificationSetup."Primary Key";
                 WarrantyNotificationLog."Email Sent" := EmailSent;
                 WarrantyNotificationLog."Failed" := not EmailSent;
