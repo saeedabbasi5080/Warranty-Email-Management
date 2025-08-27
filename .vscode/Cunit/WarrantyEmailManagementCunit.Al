@@ -175,4 +175,90 @@ codeunit 50621 "Warranty Email Management"
         else
             Error('Error sending test email: %1', GetLastErrorText());
     end;
+
+    // Add to Warranty Email Management codeunit
+    procedure SendGroupWarrantyNotification(
+        var WarrantyNotificationLog: Record "Warranty Notification Log";
+        WarrantyNotificationSetup: Record "Warranty Notification Setup";
+        ItemsList: Text) EmailSent: Boolean
+    var
+        SMTPMailSetup: Record "SMTP Mail Setup";
+        SMTPMail: Codeunit "SMTP Mail";
+        Customer: Record Customer;
+        SalespersonPurchaser: Record "Salesperson/Purchaser";
+        EmailBody: Text;
+        EmailSubject: Text;
+        Recipients: List of [Text];
+        ContactName: Text;
+    begin
+        EmailSent := false;
+
+        // Check SMTP settings
+        if not SMTPMailSetup.Get() then
+            Error('SMTP settings not found. Please configure email settings.');
+
+        // Get customer information
+        if not Customer.Get(WarrantyNotificationLog."Customer No.") then
+            Error('Customer with number %1 not found', WarrantyNotificationLog."Customer No.");
+
+        // Get salesperson information (if exists)
+        Clear(SalespersonPurchaser);
+        if WarrantyNotificationLog."Salesperson Code" <> '' then
+            if not SalespersonPurchaser.Get(WarrantyNotificationLog."Salesperson Code") then
+                Clear(SalespersonPurchaser);
+
+        // Prepare email subject
+        EmailSubject := WarrantyNotificationSetup."Email Subject";
+        if EmailSubject = '' then
+            EmailSubject := 'Your warranty will expire soon';
+
+        // Select contact name - customer or salesperson
+        ContactName := Customer.Name;
+        if Customer.Contact <> '' then
+            ContactName := Customer.Contact;
+
+        // Prepare email body
+        EmailBody := WarrantyNotificationSetup."Email Template";
+        EmailBody := EmailBody.Replace('[نام مشتری/کارشناس فروش]', ContactName);
+        EmailBody := EmailBody.Replace('[company name]', WarrantyNotificationSetup."Company Name");
+        EmailBody := EmailBody.Replace('[support email]', WarrantyNotificationSetup."Support Email");
+        EmailBody := EmailBody.Replace('[support phone]', WarrantyNotificationSetup."Support Phone");
+
+        // Add the items list at the bottom of the email
+        EmailBody += '<br/><br/><h3>لیست محصولات با گارانتی در حال انقضا:</h3><br/>';
+        EmailBody += ItemsList;
+
+        // Set email recipients
+        Clear(Recipients);
+
+        // Customer
+        if WarrantyNotificationLog."Customer Email" <> '' then
+            Recipients.Add(WarrantyNotificationLog."Customer Email");
+
+        // Salesperson
+        if WarrantyNotificationLog."Salesperson Email" <> '' then
+            Recipients.Add(WarrantyNotificationLog."Salesperson Email");
+
+        if Recipients.Count = 0 then
+            exit(false);
+
+        // Create message
+        Clear(SMTPMail);
+        SMTPMail.CreateMessage(
+            WarrantyNotificationSetup."Company Name",
+            SMTPMailSetup."User ID",
+            Recipients,
+            EmailSubject,
+            EmailBody,
+            true); // HTML = true
+
+        // Send email
+        ClearLastError();
+        if SMTPMail.Send() then begin
+            WarrantyNotificationLog."Email Sent DateTime" := CurrentDateTime;
+            EmailSent := true;
+        end;
+
+        exit(EmailSent);
+    end;
 }

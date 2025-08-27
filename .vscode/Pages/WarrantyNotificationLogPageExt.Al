@@ -1,5 +1,3 @@
-//****************
-
 page 50621 "Warranty Notification Log"
 {
     PageType = List;
@@ -8,6 +6,7 @@ page 50621 "Warranty Notification Log"
     SourceTable = "Warranty Notification Log";
     Caption = 'Warranty Notification Log';
     Editable = false;
+    // CardPageId حذف شده است
 
     layout
     {
@@ -18,102 +17,182 @@ page 50621 "Warranty Notification Log"
                 field("Entry No."; Rec."Entry No.")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Unique entry number';
+                    ToolTip = 'Specifies the entry number';
+                    Style = Strong;
+                    StyleExpr = IsGroupEntry;
                 }
                 field("Service Item No."; Rec."Service Item No.")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Service item number';
+                    ToolTip = 'Specifies the service item number';
+                    StyleExpr = ServiceItemStyle;
+                }
+                field("Items Count"; Rec."Items Count")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies how many items are included in this notification';
+                    BlankZero = true;
+                    Visible = ShowGroupFields;
                 }
                 field("Customer No."; Rec."Customer No.")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Customer number';
+                    ToolTip = 'Specifies the customer number';
                 }
                 field("Customer Email"; Rec."Customer Email")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Customer email';
+                    ToolTip = 'Specifies the customer email address';
                 }
                 field("Salesperson Code"; Rec."Salesperson Code")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Salesperson code';
-                }
-                field("Salesperson Email"; Rec."Salesperson Email")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'Salesperson email';
+                    ToolTip = 'Specifies the salesperson code';
                 }
                 field("Warranty End Date"; Rec."Warranty End Date")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Warranty end date';
+                    ToolTip = 'Specifies the warranty end date';
                 }
                 field("Notification Date"; Rec."Notification Date")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Notification date';
+                    ToolTip = 'Specifies when the notification was sent';
+                }
+                field("Setup ID"; Rec."Setup ID")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies which notification setup was used';
+                }
+                field("Parent Entry No."; Rec."Parent Entry No.")
+                {
+                    ApplicationArea = All;
+                    ToolTip = 'Specifies the parent entry number for detail records';
+                    Visible = ShowDetailFields;
                 }
                 field("Email Sent"; Rec."Email Sent")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Indicates whether the email has been sent';
+                    ToolTip = 'Specifies whether the email was sent';
                 }
                 field("Email Sent DateTime"; Rec."Email Sent DateTime")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Email sent date and time';
+                    ToolTip = 'Specifies when the email was sent';
                 }
                 field("Failed"; Rec."Failed")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Indicates whether email sending failed';
+                    ToolTip = 'Specifies whether the notification failed';
                     StyleExpr = FailedStyle;
                 }
                 field("Error Message"; Rec."Error Message")
                 {
                     ApplicationArea = All;
-                    ToolTip = 'Error message if exists';
+                    ToolTip = 'Specifies the error message if notification failed';
+                    Visible = ShowErrorMessage;
                 }
             }
         }
+        // بخش FactBoxes حذف شده است
     }
 
     actions
     {
         area(Processing)
         {
-            action(ResendEmail)
+            action(ViewItems)
             {
                 ApplicationArea = All;
-                Caption = 'Resend Email';
-                Image = Email;
+                Caption = 'View Included Items';
+                Image = Item;
                 Promoted = true;
                 PromotedCategory = Process;
-                ToolTip = 'Resend notification email';
+                ToolTip = 'View all items included in this notification group';
+                Visible = Rec."Service Item No." = 'MULTI';
 
                 trigger OnAction()
                 var
-                    WarrantyEmailMgt: Codeunit "Warranty Email Management";
+                    WarrantyLog: Record "Warranty Notification Log";
                 begin
-                    if not Confirm('Do you want to resend the email?') then
-                        exit;
+                    WarrantyLog.Reset();
+                    WarrantyLog.SetRange("Parent Entry No.", Rec."Entry No.");
+                    Page.Run(Page::"Warranty Notification Log", WarrantyLog);
+                end;
+            }
 
-                    WarrantyEmailMgt.SendWarrantyNotification(Rec);
+            action(ViewParent)
+            {
+                ApplicationArea = All;
+                Caption = 'View Parent Notification';
+                Image = Email;
+                Promoted = true;
+                PromotedCategory = Process;
+                ToolTip = 'View the parent notification that includes this item';
+                Visible = Rec."Parent Entry No." <> 0;
+
+                trigger OnAction()
+                var
+                    WarrantyLog: Record "Warranty Notification Log";
+                    FilteredLog: Record "Warranty Notification Log";
+                begin
+                    // به جای باز کردن صفحه کارت، رکورد مربوطه را در همین صفحه نمایش می‌دهیم
+                    if WarrantyLog.Get(Rec."Parent Entry No.") then begin
+                        FilteredLog.Reset();
+                        FilteredLog.SetRange("Entry No.", Rec."Parent Entry No.");
+                        Page.Run(Page::"Warranty Notification Log", FilteredLog);
+                    end;
                 end;
             }
         }
     }
 
+    views
+    {
+        view(AllEntries)
+        {
+            Caption = 'All Entries';
+        }
+        view(GroupEntries)
+        {
+            Caption = 'Group Notifications';
+            Filters = where("Service Item No." = const('MULTI'));
+        }
+        view(IndividualEntries)
+        {
+            Caption = 'Individual Item Logs';
+            Filters = where("Parent Entry No." = filter(<> 0));
+        }
+        view(FailedNotifications)
+        {
+            Caption = 'Failed Notifications';
+            Filters = where(Failed = const(true));
+        }
+    }
+
     trigger OnAfterGetRecord()
     begin
+        IsGroupEntry := Rec."Service Item No." = 'MULTI';
+        ShowGroupFields := IsGroupEntry;
+        ShowDetailFields := Rec."Parent Entry No." <> 0;
+        ShowErrorMessage := Rec."Failed";
+
         if Rec."Failed" then
             FailedStyle := 'Unfavorable'
         else
-            FailedStyle := 'Standard';
+            FailedStyle := 'StandardAccent';
+
+        if IsGroupEntry then
+            ServiceItemStyle := 'Strong'
+        else
+            ServiceItemStyle := 'Standard';
     end;
 
     var
+        IsGroupEntry: Boolean;
+        ShowGroupFields: Boolean;
+        ShowDetailFields: Boolean;
+        ShowErrorMessage: Boolean;
         FailedStyle: Text;
+        ServiceItemStyle: Text;
 }

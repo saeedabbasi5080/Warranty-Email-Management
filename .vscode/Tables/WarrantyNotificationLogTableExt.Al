@@ -71,6 +71,26 @@ table 50621 "Warranty Notification Log"
             Caption = 'Error Message';
             DataClassification = CustomerContent;
         }
+        field(15; "Setup ID"; Code[10])
+        {
+            Caption = 'Setup ID';
+            DataClassification = CustomerContent;
+        }
+        field(16; "Parent Entry No."; Integer)
+        {
+            Caption = 'Parent Entry No.';
+            DataClassification = CustomerContent;
+        }
+        field(17; "Item List"; Text[250])
+        {
+            Caption = 'Item List (Preview)';
+            DataClassification = CustomerContent;
+        }
+        field(18; "Items Count"; Integer)
+        {
+            Caption = 'Number of Items';
+            DataClassification = CustomerContent;
+        }
     }
 
     keys
