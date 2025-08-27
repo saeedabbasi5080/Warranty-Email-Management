@@ -47,6 +47,9 @@ codeunit 50621 "Warranty Email Management"
             SalespersonPurchaser,
             WarrantyNotificationSetup);
 
+        // اضافه کردن اطلاعات پشتیبانی اگر در قالب نبود
+        AppendSupportInfoIfMissing(EmailBody, WarrantyNotificationSetup);
+
         // Set email recipients
         Clear(Recipients);
 
@@ -152,6 +155,9 @@ codeunit 50621 "Warranty Email Management"
         EmailBody := EmailBody.Replace('[support phone]', WarrantyNotificationSetup."Support Phone");
         EmailBody := EmailBody.Replace('[company name]', WarrantyNotificationSetup."Company Name");
 
+        // اضافه کردن اطلاعات پشتیبانی اگر در قالب نبود
+        AppendSupportInfoIfMissing(EmailBody, WarrantyNotificationSetup);
+
         // پاک کردن لیست گیرندگان قبلی
         Clear(Recipients);
 
@@ -176,7 +182,6 @@ codeunit 50621 "Warranty Email Management"
             Error('Error sending test email: %1', GetLastErrorText());
     end;
 
-    // Add to Warranty Email Management codeunit
     procedure SendGroupWarrantyNotification(
         var WarrantyNotificationLog: Record "Warranty Notification Log";
         WarrantyNotificationSetup: Record "Warranty Notification Setup";
@@ -220,13 +225,26 @@ codeunit 50621 "Warranty Email Management"
         // Prepare email body
         EmailBody := WarrantyNotificationSetup."Email Template";
         EmailBody := EmailBody.Replace('[نام مشتری/کارشناس فروش]', ContactName);
-        EmailBody := EmailBody.Replace('[company name]', WarrantyNotificationSetup."Company Name");
-        EmailBody := EmailBody.Replace('[support email]', WarrantyNotificationSetup."Support Email");
-        EmailBody := EmailBody.Replace('[support phone]', WarrantyNotificationSetup."Support Phone");
+
+
+        // اضافه کردن اطلاعات پشتیبانی اگر در قالب نبود
+        AppendSupportInfoIfMissing(EmailBody, WarrantyNotificationSetup);
 
         // Add the items list at the bottom of the email
         EmailBody += '<br/><br/><h3>لیست محصولات با گارانتی در حال انقضا:</h3><br/>';
         EmailBody += ItemsList;
+
+        // اضافه کردن پیام سفارشی بعد از جدول آیتم‌ها
+        if WarrantyNotificationSetup."Additional Message" <> '' then
+            EmailBody += '<br/><br/>' + WarrantyNotificationSetup."Additional Message";
+
+        EmailBody := EmailBody.Replace('[company name]', WarrantyNotificationSetup."Company Name");
+        EmailBody := EmailBody.Replace('[support email]', WarrantyNotificationSetup."Support Email");
+        EmailBody := EmailBody.Replace('[support phone]', WarrantyNotificationSetup."Support Phone");
+
+        // اضافه کردن امضا در انتهای ایمیل، اگر وجود داشته باشد
+        if WarrantyNotificationSetup."Email Signature" <> '' then
+            EmailBody += '<br/><br/>' + WarrantyNotificationSetup."Email Signature";
 
         // Set email recipients
         Clear(Recipients);
@@ -261,4 +279,15 @@ codeunit 50621 "Warranty Email Management"
 
         exit(EmailSent);
     end;
+
+    local procedure AppendSupportInfoIfMissing(var EmailBody: Text; WarrantyNotificationSetup: Record "Warranty Notification Setup")
+    begin
+        if StrPos(EmailBody, '[support email]') = 0 then
+            EmailBody += '<br/>ایمیل پشتیبانی: ' + WarrantyNotificationSetup."Support Email";
+        if StrPos(EmailBody, '[support phone]') = 0 then
+            EmailBody += '<br/>تلفن پشتیبانی: ' + WarrantyNotificationSetup."Support Phone";
+        if StrPos(EmailBody, '[company name]') = 0 then
+            EmailBody += '<br/>شرکت: ' + WarrantyNotificationSetup."Company Name";
+    end;
+
 }

@@ -58,6 +58,16 @@ table 50620 "Warranty Notification Setup"
             Caption = 'Email Template';
             DataClassification = CustomerContent;
         }
+        field(15; "Email Signature"; Text[2048])
+        {
+            Caption = 'Email Signature';
+            DataClassification = CustomerContent;
+        }
+        field(16; "Additional Message"; Text[2048])
+        {
+            Caption = 'Additional Message';
+            DataClassification = CustomerContent;
+        }
     }
 
     keys

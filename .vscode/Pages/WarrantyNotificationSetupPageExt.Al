@@ -1,4 +1,3 @@
-//*******
 page 50620 "Warranty Notification Setup"
 {
     PageType = Card;
@@ -51,6 +50,20 @@ page 50620 "Warranty Notification Setup"
                     begin
                         Rec.Validate("Email Template");
                     end;
+                }
+                field("Additional Message"; Rec."Additional Message")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Additional Message';
+                    ToolTip = 'Additional message text that will appear in the email body';
+                    MultiLine = true;
+                }
+                field("Email Signature"; Rec."Email Signature")
+                {
+                    ApplicationArea = All;
+                    Caption = 'Email Signature';
+                    ToolTip = 'Signature text that will appear at the end of the email, after the items list';
+                    MultiLine = true;
                 }
                 field("Support Email"; Rec."Support Email")
                 {

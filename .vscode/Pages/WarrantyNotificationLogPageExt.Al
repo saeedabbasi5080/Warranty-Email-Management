@@ -92,6 +92,8 @@ page 50621 "Warranty Notification Log"
                     ToolTip = 'Specifies the error message if notification failed';
                     Visible = ShowErrorMessage;
                 }
+
+
             }
         }
         // بخش FactBoxes حذف شده است

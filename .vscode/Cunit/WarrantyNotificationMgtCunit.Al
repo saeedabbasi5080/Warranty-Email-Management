@@ -11,6 +11,7 @@ codeunit 50620 "Warranty Notification Mgt."
         ServiceItem: Record "Service Item";
         TempServiceItemBuffer: Record "Service Item" temporary;
         Customer: Record Customer;
+        ServiceItemGroup: Record "Service Item Group"; // اضافه شد
         NotificationDate: Date;
         CurrentCustomerNo: Code[20];
         TotalEmails: Integer;
@@ -36,6 +37,9 @@ codeunit 50620 "Warranty Notification Mgt."
             ServiceItem.Reset();
             ServiceItem.SetFilter("Warranty Ending Date (Parts)", '<>%1', 0D);
             ServiceItem.SetRange("Warranty Ending Date (Parts)", NotificationDate);
+
+            // فقط آیتم‌هایی که گروه‌شان License یا Support است
+            ServiceItem.SetFilter("Service Item Group Code", '%1|%2', 'License', 'Support');
 
             // Group by customer
             if ServiceItem.FindSet() then begin
