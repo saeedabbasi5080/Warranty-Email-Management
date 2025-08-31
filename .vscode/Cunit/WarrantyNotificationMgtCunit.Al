@@ -22,20 +22,20 @@ codeunit 50620 "Warranty Notification Mgt."
         // Process each active notification setup
         WarrantyNotificationSetup.Reset();
         WarrantyNotificationSetup.SetRange("Notification Enabled", true);
-
         if not WarrantyNotificationSetup.FindSet() then begin
             Message('No active notification settings found.');
             exit;
         end;
 
+        // Calculate target expiry date based on Days Before Expiry
+        NotificationDate := CalcDate('<+' + Format(WarrantyNotificationSetup."Days Before Expiry") + 'D>', WorkDate());
         repeat
-            // Calculate target expiry date based on Days Before Expiry
-            NotificationDate := CalcDate('<+' + Format(WarrantyNotificationSetup."Days Before Expiry") + 'D>', WorkDate());
-
             // Find all service items expiring on target date - directly without customer loop
             ServiceItem.Reset();
             ServiceItem.SetFilter("Warranty Ending Date (Parts)", '<>%1', 0D);
             ServiceItem.SetRange("Warranty Ending Date (Parts)", NotificationDate);
+            // فقط آیتم‌هایی که گروه‌شان License یا Support است
+            ServiceItem.SetFilter("Service Item Group Code", '%1|%2', 'License', 'Support');
 
             // Group by customer
             if ServiceItem.FindSet() then begin
@@ -123,7 +123,8 @@ codeunit 50620 "Warranty Notification Mgt."
         TempServiceItemBuffer.Reset();
         if TempServiceItemBuffer.FindSet() then
             repeat
-                ItemsList := BuildItemsListFromBuffer(TempServiceItemBuffer); // یا فقط اطلاعات همان آیتم را بساز
+                // فقط اطلاعات همان آیتم را بساز
+                ItemsList := BuildSingleItemRow(TempServiceItemBuffer);
 
                 // ساخت لاگ برای هر آیتم
                 WarrantyNotificationLog.Init();
@@ -136,7 +137,7 @@ codeunit 50620 "Warranty Notification Mgt."
                 WarrantyNotificationLog."Warranty End Date" := TempServiceItemBuffer."Warranty Ending Date (Parts)";
                 WarrantyNotificationLog."Notification Date" := WorkDate();
                 WarrantyNotificationLog."Setup ID" := WarrantyNotificationSetup."Primary Key";
-                WarrantyNotificationLog."Item List" := TempServiceItemBuffer."No."; // یا اطلاعات کامل همان آیتم
+                WarrantyNotificationLog."Item List" := TempServiceItemBuffer."No.";
                 WarrantyNotificationLog."Items Count" := 1;
                 WarrantyNotificationLog.Insert();
 
@@ -161,32 +162,25 @@ codeunit 50620 "Warranty Notification Mgt."
             until TempServiceItemBuffer.Next() = 0;
     end;
 
-    local procedure BuildItemsListFromBuffer(var TempServiceItemBuffer: Record "Service Item" temporary) ItemsList: Text
+    local procedure BuildSingleItemRow(var TempServiceItemBuffer: Record "Service Item" temporary) ItemsList: Text
     var
         WarrantyDate: Text;
     begin
+        WarrantyDate := Format(TempServiceItemBuffer."Warranty Ending Date (Parts)");
         ItemsList := '<table border="1" cellpadding="5" style="border-collapse: collapse; width: 100%;">' +
                      '<tr style="background-color: #f2f2f2;">' +
                      '<th>شماره محصول</th>' +
                      '<th>توضیحات</th>' +
                      '<th>شماره سریال</th>' +
                      '<th>تاریخ انقضای گارانتی</th>' +
-                     '</tr>';
-
-        TempServiceItemBuffer.Reset();
-        if TempServiceItemBuffer.FindSet() then
-            repeat
-                WarrantyDate := Format(TempServiceItemBuffer."Warranty Ending Date (Parts)");
-
-                ItemsList += '<tr>' +
-                             '<td>' + TempServiceItemBuffer."No." + '</td>' +
-                             '<td>' + TempServiceItemBuffer.Description + '</td>' +
-                             '<td>' + TempServiceItemBuffer."Serial No." + '</td>' +
-                             '<td>' + WarrantyDate + '</td>' +
-                             '</tr>';
-            until TempServiceItemBuffer.Next() = 0;
-
-        ItemsList += '</table>';
+                     '</tr>' +
+                     '<tr>' +
+                     '<td>' + TempServiceItemBuffer."No." + '</td>' +
+                     '<td>' + TempServiceItemBuffer.Description + '</td>' +
+                     '<td>' + TempServiceItemBuffer."Serial No." + '</td>' +
+                     '<td>' + WarrantyDate + '</td>' +
+                     '</tr>' +
+                     '</table>';
     end;
 
     local procedure LogIndividualItemsFromBuffer(
@@ -197,17 +191,15 @@ codeunit 50620 "Warranty Notification Mgt."
         EmailSent: Boolean)
     var
         WarrantyNotificationLog: Record "Warranty Notification Log";
-        SalespersonPurchaser: Record "Salesperson/Purchaser"; // اضافه کردن متغیر ناقص
+        SalespersonPurchaser: Record "Salesperson/Purchaser";
         NextEntryNo: Integer;
     begin
-        // Find next entry number
         WarrantyNotificationLog.Reset();
         if WarrantyNotificationLog.FindLast() then
             NextEntryNo := WarrantyNotificationLog."Entry No." + 1
         else
             NextEntryNo := 1;
 
-        // Log each item individually
         TempServiceItemBuffer.Reset();
         if TempServiceItemBuffer.FindSet() then
             repeat

@@ -1,4 +1,4 @@
-codeunit 50621 "Warranty Email Management"
+codeunit 50625 "Warranty Email Management"
 {
     procedure SendWarrantyNotification(var WarrantyNotificationLog: Record "Warranty Notification Log")
     var
